@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Island World V4</title>
+<style>
+:root{
+  --bg:#111;
+  --panel:#1b1b1b;
+  --line:#333;
+  --text:#eee;
+  --muted:#aaa;
+  --ocean:#2563eb;
+  --river:#60a5fa;
+  --rich:#5c3b1e;
+  --poor:#b58a63;
+  --pollock:#f59e0b;
+  --rembrandt:#3b82f6;
+  --maya:#a855f7;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,Helvetica,sans-serif;
+  padding:10px;
+}
+h1{font-size:22px;text-align:center;margin:6px 0 10px}
+#top{
+  display:flex;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px;
+  margin-bottom:10px;
+  font-weight:bold;
+}
+#controls{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+button{
+  padding:8px 12px;
+  border:1px solid #555;
+  border-radius:8px;
+  background:#222;
+  color:var(--text);
+  font-weight:bold;
+}
+#cards{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  padding-bottom:6px;
+  margin-bottom:10px;
+}
+.card{
+  min-width:210px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px;
+}
+.head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:8px;
+}
+.namebox{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:bold;
+}
+.icon,.token{
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  font-weight:bold;
+  box-shadow:0 0 0 2px rgba(255,255,255,.25);
+}
+.icon{width:30px;height:30px}
+.token{width:18px;height:18px;font-size:11px}
+.stat{
+  display:flex;
+  justify-content:space-between;
+  border-bottom:1px solid #2b2b2b;
+  padding:3px 0;
+  font-size:14px;
+}
+.statusAlive{color:#22c55e;font-weight:bold}
+.statusDead{color:#ef4444;font-weight:bold}
+.wrap{
+  overflow:auto;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--panel);
+  padding:6px;
+  margin-bottom:10px;
+}
+#legend{
+  text-align:center;
+  font-size:13px;
+  color:#ddd;
+  margin-bottom:6px;
+}
+#map{
+  display:grid;
+  grid-template-columns:repeat(20,18px);
+  gap:1px;
+  width:max-content;
+  margin:0 auto;
+}
+.tile{
+  width:18px;
+  height:18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.ocean{background:var(--ocean)}
+.river{background:var(--river)}
+.rich{background:var(--rich)}
+.poor{background:var(--poor)}
+#history,#events{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:8px;
+  margin-top:10px;
+}
+h2{font-size:16px;margin:0 0 8px}
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+th,td{
+  border:1px solid #444;
+  padding:6px;
+  text-align:center;
+}
+th{background:#222}
+#log{
+  font-size:13px;
+  color:#ddd;
+  line-height:1.4;
+}
+@media(max-width:600px){
+  #map{grid-template-columns:repeat(20,16px)}
+  .tile{width:16px;height:16px}
+  .token{width:14px;height:14px;font-size:9px}
+}
+</style>
+</head>
+<body>
+<h1>Island World V4</h1>
+
+<div id="top"></div>
+
+<div id="controls">
+  <button id="pauseBtn">Pause</button>
+  <button id="slowBtn">Slow</button>
+  <button id="normalBtn">Normal</button>
+  <button id="fastBtn">Fast</button>
+</div>
+
+<div id="cards"></div>
+
+<div id="legend">
+  🌊 Ocean / River = no-go · 🟫 Dark brown = rich · 🟤 Light brown = depleted · 🟠 Pollock · 🔵 Rembrandt · 🟣 Maya
+</div>
+
+<div class="wrap">
+  <div id="map"></div>
+</div>
+
+<div id="history">
+  <h2>Last Three Actions</h2>
+  <table>
+    <thead>
+      <tr><th>Pollock</th><th>Rembrandt</th><th>Maya</th></tr>
+    </thead>
+    <tbody>
+      <tr><td id="p0"></td><td id="r0"></td><td id="m0"></td></tr>
+      <tr><td id="p1"></td><td id="r1"></td><td id="m1"></td></tr>
+      <tr><td id="p2"></td><td id="r2"></td><td id="m2"></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="events">
+  <h2>Event Log</h2>
+  <div id="log"></div>
+</div>
+
+<script>
+const GRID = 20;
+const BORDER = 2;
+const CLICKS_PER_DAY = 25;
+const RESPAWN_DAYS = 20;
+const REFRESH_EVERY = 4;
+
+let click = 0;
+let day = 1;
+let running = true;
+let delay = 140;
+
+const topEl = document.getElementById("top");
+const cardsEl = document.getElementById("cards");
+const mapEl = document.getElementById("map");
+const logEl = document.getElementById("log");
+
+document.getElementById("pauseBtn").onclick = () => {
+  running = !running;
+  document.getElementById("pauseBtn").textContent = running ? "Pause" : "Play";
+};
+document.getElementById("slowBtn").onclick = () => delay = 260;
+document.getElementById("normalBtn").onclick = () => delay = 140;
+document.getElementById("fastBtn").onclick = () => delay = 55;
+
+const actions = ["gather","move","sleep","socialize"];
+const eventLog = [];
+
+function logEvent(text){
+  eventLog.unshift(text);
+  if(eventLog.length > 7) eventLog.pop();
+}
+
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function round(v){ return Math.round(v); }
+
+function makeAgent(name, initial, color, personality, x, y){
+  return {
+    name, initial, color, personality, x, y,
+    health:100,
+    hunger:80,
+    thirst:80,
+    sleep:80,
+    social:80,
+    harvest:1,
+    deaths:0,
+    age:0,
+    alive:true,
+    deadDays:0,
+    q:{},
+    last:["Spawned"],
+    lastQ:"🍖",
+    currentAction:"Idle",
+    visited:new Set([x+","+y])
+  };
+}
+
+const agents = [
+  makeAgent("Pollock","P","#f59e0b","balanced",5,14),
+  makeAgent("Rembrandt","R","#3b82f6","safe",9,14),
+  makeAgent("Maya","M","#a855f7","risk",14,14)
+];
+
+const world = [];
+let bounty = {x:10,y:10,radius:4};
+
+function initWorld(){
+  for(let y=0;y<GRID;y++){
+    world[y] = [];
+    for(let x=0;x<GRID;x++){
+      const water = x < BORDER || y < BORDER || x >= GRID-BORDER || y >= GRID-BORDER;
+      world[y][x] = {
+        water,
+        river:false,
+        res: water ? 0 : 45 + Math.random()*45,
+        fertility: 1
+      };
+    }
+  }
+
+  // One-tile river enters from top and stops near middle. It does not cross whole map.
+  let rx = Math.floor(GRID/2);
+  for(let y=BORDER;y<Math.floor(GRID*0.58);y++){
+    world[y][rx].water = true;
+    world[y][rx].river = true;
+    world[y][rx].res = 0;
+    if(Math.random() < 0.55){
+      rx += [-1,0,1][Math.floor(Math.random()*3)];
+      rx = clamp(rx, BORDER, GRID-BORDER-1);
+    }
+  }
+
+  shiftBounty();
+}
+
+function isLand(x,y){
+  return x >= 0 && y >= 0 && x < GRID && y < GRID && !world[y][x].water;
+}
+
+function occupied(x,y){
+  return agents.some(a => a.alive && a.x === x && a.y === y);
+}
+
+function randomLand(){
+  for(let tries=0;tries<1000;tries++){
+    const x = BORDER + Math.floor(Math.random()*(GRID-BORDER*2));
+    const y = BORDER + Math.floor(Math.random()*(GRID-BORDER*2));
+    if(isLand(x,y) && !occupied(x,y)) return {x,y};
+  }
+  return {x:BORDER,y:BORDER};
+}
+
+function addAction(agent, action){
+  agent.last.unshift(action);
+  if(agent.last.length > 3) agent.last.pop();
+  agent.currentAction = action;
+}
+
+function dominantNeed(agent){
+  const needs = [
+    {icon:"🍖", value:100-agent.hunger},
+    {icon:"💧", value:100-agent.thirst},
+    {icon:"😴", value:100-agent.sleep},
+    {icon:"👥", value:100-agent.social}
+  ];
+  needs.sort((a,b)=>b.value-a.value);
+  agent.lastQ = needs[0].icon;
+  return needs[0].icon;
+}
+
+function qState(agent){
+  const cell = world[agent.y][agent.x];
+  return [
+    Math.floor(agent.health/20),
+    Math.floor(agent.hunger/20),
+    Math.floor(agent.thirst/20),
+    Math.floor(agent.sleep/20),
+    Math.floor(agent.social/20),
+    Math.floor(cell.res/20),
+    Math.floor(agent.x/4)
+  ].join("|");
+}
+
+function ensureQ(agent, state){
+  if(!agent.q[state]){
+    agent.q[state] = {gather:0, move:0, sleep:0, socialize:0};
+  }
+}
+
+function chooseAction(agent){
+  dominantNeed(agent);
+  const state = qState(agent);
+  ensureQ(agent,state);
+
+  let epsilon = agent.personality === "risk" ? 0.32 : agent.personality === "safe" ? 0.12 : 0.20;
+
+  if(Math.random() < epsilon){
+    if(agent.personality === "risk" && Math.random() < 0.45) return "move";
+    return actions[Math.floor(Math.random()*actions.length)];
+  }
+
+  let best = "gather";
+  let bestVal = -Infinity;
+  for(const a of actions){
+    let val = agent.q[state][a];
+
+    // Survival nudges layered over Q memory.
+    if(agent.thirst < 35 && a === "gather") val += 6;
+    if(agent.hunger < 35 && a === "gather") val += 5;
+    if(agent.sleep < 35 && a === "sleep") val += 5;
+    if(agent.social < 35 && a === "socialize") val += 3;
+
+    if(agent.personality === "safe" && agent.health < 60 && a === "sleep") val += 3;
+    if(agent.personality === "risk" && a === "move") val += 1.5;
+
+    // Social cap: don't farm social when already high.
+    if(agent.social > 90 && a === "socialize") val -= 8;
+
+    if(val > bestVal){
+      bestVal = val;
+      best = a;
+    }
+  }
+  return best;
+}
+
+function learn(agent, state, action, reward, nextState){
+  ensureQ(agent,state);
+  ensureQ(agent,nextState);
+  const alpha = 0.1;
+  const gamma = 0.9;
+  const old = agent.q[state][action];
+  const future = Math.max(...Object.values(agent.q[nextState]));
+  agent.q[state][action] = old + alpha * (reward + gamma * future - old);
+}
+
+function nearbyAgent(agent){
+  return agents.some(o => o !== agent && o.alive && Math.abs(o.x-agent.x) <= 3 && Math.abs(o.y-agent.y) <= 3);
+}
+
+function shiftBounty(){
+  const p = randomLand();
+  bounty = {x:p.x, y:p.y, radius:3 + Math.floor(Math.random()*3)};
+
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      if(world[y][x].water){
+        world[y][x].fertility = 0;
+        continue;
+      }
+      const dist = Math.hypot(x-bounty.x, y-bounty.y);
+      world[y][x].fertility = dist <= bounty.radius ? 1.7 : 0.85 + Math.random()*0.35;
+    }
+  }
+  logEvent("🌾 Resource bounty shifted on Day " + day);
+}
+
+function regenResources(){
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c = world[y][x];
+      if(c.water) continue;
+
+      // Stronger than old scarcity, but still limited by fertility and bad choices.
+      const base = Math.random() < 0.24 ? 1 : 0;
+      const bonus = Math.random() < 0.05 * c.fertility ? 1 : 0;
+      c.res = clamp(c.res + (base + bonus) * c.fertility, 0, 100);
+    }
+  }
+
+  if(day % 18 === 0) shiftBounty();
+}
+
+function moveAgent(agent){
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]];
+  let options = dirs
+    .map(d => ({x:agent.x+d[0], y:agent.y+d[1]}))
+    .filter(p => isLand(p.x,p.y) && !occupied(p.x,p.y));
+
+  if(options.length === 0) return -2;
+
+  // Maya explores more randomly; Rembrandt prefers rich nearby tiles.
+  let target;
+  if(agent.personality === "safe"){
+    options.sort((a,b)=>world[b.y][b.x].res-world[a.y][a.x].res);
+    target = options[0];
+  }else{
+    target = options[Math.floor(Math.random()*options.length)];
+  }
+
+  agent.x = target.x;
+  agent.y = target.y;
+
+  const key = agent.x+","+agent.y;
+  let reward = 1;
+  if(!agent.visited.has(key)){
+    agent.visited.add(key);
+    reward += 1;
+    if(world[agent.y][agent.x].fertility > 1.4) reward += 8;
+  }
+  addAction(agent,"🚶 Move");
+  return reward;
+}
+
+function gather(agent){
+  const c = world[agent.y][agent.x];
+  if(c.water) return -5;
+
+  const amount = clamp(2 + Math.random()*4, 1, 6) * agent.harvest;
+  const gained = Math.min(c.res, amount);
+  c.res = clamp(c.res - gained, 0, 100);
+
+  agent.hunger = clamp(agent.hunger + gained*1.2, 0, 100);
+  agent.thirst = clamp(agent.thirst + gained*1.0, 0, 100);
+
+  // Productive activity recovers harvest rhythm after over-socializing.
+  agent.harvest = clamp(agent.harvest + 0.02, 0.5, 1.0);
+
+  addAction(agent,"🍖 Gather");
+  return gained + (agent.hunger < 35 ? 4 : 0) + (agent.thirst < 35 ? 5 : 0);
+}
+
+function sleep(agent){
+  agent.sleep = clamp(agent.sleep + 14, 0, 100);
+  agent.health = clamp(agent.health + 2, 0, 100);
+  agent.harvest = clamp(agent.harvest + 0.015, 0.5, 1.0);
+  addAction(agent,"😴 Sleep");
+  return agent.sleep < 45 ? 6 : 2;
+}
+
+function socialize(agent){
+  if(agent.social > 90){
+    addAction(agent,"👥 Social Cap");
+    return 0;
+  }
+
+  if(nearbyAgent(agent)){
+    agent.social = clamp(agent.social + 16, 0, 100);
+    agent.health = clamp(agent.health + 1.5, 0, 100);
+    agent.harvest = clamp(agent.harvest - 0.05, 0.5, 1.0);
+    addAction(agent,"👥 Socialize");
+    return agent.social < 45 ? 4 : 2;
+  }
+
+  agent.social = clamp(agent.social - 2, 0, 100);
+  addAction(agent,"👥 Failed Social");
+  return -3;
+}
+
+function applyNeeds(agent){
+  agent.hunger = clamp(agent.hunger - 0.28, 0, 100);
+  agent.thirst = clamp(agent.thirst - 0.34, 0, 100);
+  agent.sleep = clamp(agent.sleep - 0.18, 0, 100);
+  agent.social = clamp(agent.social - 0.10, 0, 100);
+
+  if(agent.thirst < 20) agent.health -= 2.5;
+  if(agent.hunger < 20) agent.health -= 1.8;
+  if(agent.sleep < 15) agent.health -= 0.9;
+  if(agent.social < 10) agent.health -= 0.35;
+
+  if(agent.hunger > 55 && agent.thirst > 55 && agent.sleep > 45){
+    agent.health = clamp(agent.health + 0.25, 0, 100);
+  }
+
+  agent.health = clamp(agent.health, 0, 100);
+}
+
+function killAgent(agent){
+  if(!agent.alive) return;
+  agent.alive = false;
+  agent.deaths += 1;
+  agent.deadDays = 0;
+  agent.health = 0;
+  addAction(agent,"☠️ Died");
+  logEvent("☠️ " + agent.name + " died on Day " + day);
+}
+
+function respawn(agent){
+  const p = randomLand();
+  agent.x = p.x;
+  agent.y = p.y;
+  agent.health = 100;
+  agent.hunger = 80;
+  agent.thirst = 80;
+  agent.sleep = 80;
+  agent.social = 80;
+  agent.harvest = 1.0;
+  agent.age = 0;
+  agent.alive = true;
+  agent.deadDays = 0;
+  addAction(agent,"🟢 Respawned");
+  logEvent("🟢 " + agent.name + " respawned on Day " + day);
+}
+
+function stepAgent(agent){
+  if(!agent.alive) return;
+
+  const state = qState(agent);
+  const action = chooseAction(agent);
+  let reward = 0;
+
+  if(action === "gather") reward = gather(agent);
+  if(action === "move") reward = moveAgent(agent);
+  if(action === "sleep") reward = sleep(agent);
+  if(action === "socialize") reward = socialize(agent);
+
+  applyNeeds(agent);
+
+  if(agent.health <= 0){
+    reward -= 100;
+    killAgent(agent);
+  }
+
+  const nextState = qState(agent);
+  learn(agent,state,action,reward,nextState);
+}
+
+function step(){
+  click++;
+
+  regenResources();
+
+  agents.forEach(stepAgent);
+
+  if(click % CLICKS_PER_DAY === 0){
+    day++;
+    agents.forEach(a => {
+      if(a.alive){
+        a.age++;
+      }else{
+        a.deadDays++;
+        if(a.deadDays >= RESPAWN_DAYS) respawn(a);
+      }
+    });
+  }
+
+  if(click % REFRESH_EVERY === 0) render();
+}
+
+function cardHTML(a){
+  const status = a.alive ? "<span class='statusAlive'>🟢 Alive</span>" : "<span class='statusDead'>🔴 Dead</span>";
+  const respawn = a.alive ? "" : `<div class="stat"><span>⏳ Respawn</span><b>${Math.max(0, RESPAWN_DAYS-a.deadDays)}d</b></div>`;
+
+  return `
+  <div class="card">
+    <div class="head">
+      <div class="namebox"><div class="icon" style="background:${a.color}">${a.initial}</div>${a.name}</div>
+      ${status}
+    </div>
+    <div class="stat"><span>❤️ Health</span><b>${round(a.health)}</b></div>
+    <div class="stat"><span>☠️ Deaths</span><b>${a.deaths}</b></div>
+    <div class="stat"><span>🎂 Age</span><b>${a.age}d</b></div>
+    <div class="stat"><span>👥 Social</span><b>${round(a.social)}</b></div>
+    <div class="stat"><span>🍖 Hunger</span><b>${round(a.hunger)}</b></div>
+    <div class="stat"><span>💧 Thirst</span><b>${round(a.thirst)}</b></div>
+    <div class="stat"><span>😴 Sleep</span><b>${round(a.sleep)}</b></div>
+    <div class="stat"><span>🌾 Harvest</span><b>${round(a.harvest*100)}%</b></div>
+    <div class="stat"><span>Q State</span><b>${a.lastQ}</b></div>
+    <div class="stat"><span>Action</span><b>${a.currentAction}</b></div>
+    ${respawn}
+  </div>`;
+}
+
+function render(){
+  const alive = agents.filter(a=>a.alive).length;
+  const deaths = agents.reduce((s,a)=>s+a.deaths,0);
+  topEl.innerHTML = `<span>📅 Day ${day}</span><span>⏱️ Click ${click % CLICKS_PER_DAY}/25</span><span>🟢 Alive ${alive}/3</span><span>☠️ Deaths ${deaths}</span>`;
+
+  cardsEl.innerHTML = agents.map(cardHTML).join("");
+
+  const pos = {};
+  agents.forEach(a => { if(a.alive) pos[a.x+","+a.y] = a; });
+
+  let html = "";
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c = world[y][x];
+      let cls = c.water ? (c.river ? "river" : "ocean") : (c.res > 55 ? "rich" : "poor");
+      html += `<div class="tile ${cls}">`;
+      const a = pos[x+","+y];
+      if(a) html += `<div class="token" style="background:${a.color}">${a.initial}</div>`;
+      html += `</div>`;
+    }
+  }
+  mapEl.innerHTML = html;
+
+  const ids = [["p",0],["r",1],["m",2]];
+  ids.forEach(([prefix,index])=>{
+    for(let i=0;i<3;i++){
+      document.getElementById(prefix+i).textContent = agents[index].last[i] || "";
+    }
+  });
+
+  logEl.innerHTML = eventLog.length ? eventLog.map(e=>`<div>${e}</div>`).join("") : "<span style='color:#aaa'>No major events yet.</span>";
+}
+
+function loop(){
+  if(running) step();
+  setTimeout(loop, delay);
+}
+
+initWorld();
+logEvent("🌍 Island World started");
+render();
+loop();
+</script>
+</body>
+</html>
