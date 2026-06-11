@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Island World V3</title>
+<style>
+body{margin:0;background:#111;color:#eee;font-family:Arial;padding:10px}
+#top{display:flex;gap:16px;flex-wrap:wrap;background:#1b1b1b;border:1px solid #333;border-radius:8px;padding:10px;margin-bottom:10px}
+#cards{display:flex;gap:8px;overflow-x:auto;margin-bottom:10px}
+.card{min-width:190px;background:#1b1b1b;border:1px solid #333;border-radius:8px;padding:8px}
+.icon,.token{border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold}
+.icon{width:28px;height:28px}
+.token{width:14px;height:14px;font-size:9px}
+.bar{height:8px;background:#333;margin:4px 0}
+.fill{height:100%;background:#aaa}
+#controls{margin-bottom:10px}
+button{padding:8px}
+.wrap{overflow:auto;border:1px solid #333;padding:6px;background:#1b1b1b;border-radius:8px}
+#map{display:grid;grid-template-columns:repeat(25,16px);gap:1px;width:max-content}
+.tile{width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<h3>Island World V3</h3>
+<div id="top"></div>
+<div id="controls">
+<button id="play">Pause</button>
+<button id="slow">Slow</button>
+<button id="fast">Fast</button>
+</div>
+<div id="cards"></div>
+<div class="wrap"><div id="map"></div></div>
+
+<script>
+const W=25,H=25,DAYCLICKS=25,REFRESH=4,RESPAWN_DAYS=30;
+let running=true,delay=150,tick=0,day=1;
+
+const topEl=document.getElementById('top');
+const cardsEl=document.getElementById('cards');
+const mapEl=document.getElementById('map');
+
+document.getElementById('play').onclick=()=>{running=!running;play.textContent=running?'Pause':'Play';};
+document.getElementById('slow').onclick=()=>delay=200;
+document.getElementById('fast').onclick=()=>delay=50;
+
+const world=[];
+for(let y=0;y<H;y++){
+ world[y]=[];
+ for(let x=0;x<W;x++){
+   world[y][x]={res:20+Math.random()*30,river:false,ocean:false};
+ }
+}
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+ if(x===0||y===0||x===W-1||y===H-1){world[y][x].ocean=true;world[y][x].res=0;}
+}
+let rx=12,ry=1;
+while(ry<12){
+ world[ry][rx].river=true;
+ world[ry][rx].res=0;
+ rx=Math.max(1,Math.min(W-2,rx+[-1,0,1][Math.floor(Math.random()*3)]));
+ ry++;
+}
+
+const agents=[
+{name:"Pollock",i:"P",c:"#d35454",x:5,y:18,e:100,g:0,d:0,q:0,alive:true,dead:0,cd:0,max:3,last:"idle",gatherBias:0},
+{name:"Rembrandt",i:"R",c:"#4a90e2",x:12,y:16,e:100,g:0,d:0,q:0,alive:true,dead:0,cd:0,max:3,last:"idle",gatherBias:0},
+{name:"Maya",i:"M",c:"#2ecc71",x:18,y:18,e:100,g:0,d:0,q:0,alive:true,dead:0,cd:0,max:2,last:"idle",gatherBias:0}
+];
+
+function spawn(a){
+ let ok=false;
+ while(!ok){
+   let x=1+Math.floor(Math.random()*23);
+   let y=1+Math.floor(Math.random()*23);
+   if(!world[y][x].river){a.x=x;a.y=y;ok=true;}
+ }
+ a.e=100;a.alive=true;a.dead=0;a.cd=0;
+}
+
+function stepAgent(a){
+ if(!a.alive){
+   a.dead++;
+   if(a.dead>=RESPAWN_DAYS*DAYCLICKS) spawn(a);
+   return;
+ }
+ a.e-=0.25;
+ if(a.cd>0)a.cd--;
+
+ let r=Math.random();
+ if(a.name==="Maya") r*=0.8;
+
+ let action;
+ if(r<0.35-a.gatherBias) action="gather";
+ else if(r<0.7) action="move";
+ else if(r<0.9) action="rest";
+ else action="explore";
+
+ a.last=action;
+
+ if(action==="gather"){
+   let c=world[a.y][a.x];
+   let gain=Math.min(5,c.res);
+   c.res=Math.max(0,c.res-gain);
+   a.g+=gain;
+   a.e=Math.min(100,a.e+gain*0.4);
+   a.q+=gain;
+   a.gatherBias=Math.min(0.25,a.gatherBias+0.03);
+ }
+ else{
+   a.gatherBias=Math.max(0,a.gatherBias-0.01);
+ }
+
+ if((action==="move"||action==="explore") && a.cd===0){
+   let span=(action==="explore")?2:1;
+   let nx=Math.max(1,Math.min(23,a.x+Math.floor(Math.random()*(span*2+1))-span));
+   let ny=Math.max(1,Math.min(23,a.y+Math.floor(Math.random()*(span*2+1))-span));
+   if(!world[ny][nx].river){a.x=nx;a.y=ny;}
+   a.cd=a.max;
+   a.q+=1;
+ }
+
+ if(action==="rest") a.e=Math.min(100,a.e+2);
+
+ if(a.e<=0){
+   a.alive=false;
+   a.d++;
+ }
+}
+
+function regen(){
+ for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+   let c=world[y][x];
+   if(!c.river && Math.random()<0.01) c.res=Math.min(50,c.res+5);
+ }
+}
+
+function render(){
+ const alive=agents.filter(a=>a.alive).length;
+ const deaths=agents.reduce((s,a)=>s+a.d,0);
+ topEl.innerHTML=`<b>Day ${day}</b><b>Alive ${alive}/3</b><b>Total Deaths ${deaths}</b>`;
+
+ cardsEl.innerHTML=agents.map(a=>`
+ <div class="card">
+ <div style="display:flex;align-items:center;gap:8px">
+ <div class="icon" style="background:${a.c}">${a.i}</div><b>${a.name}</b>
+ </div>
+ Energy<div class="bar"><div class="fill" style="width:${a.e}%"></div></div>
+ Gathered: ${a.g}<br>
+ Deaths: ${a.d}<br>
+ Q: ${Math.floor(a.q)}<br>
+ Cooldown: ${a.cd}<br>
+ State: ${a.alive?a.last:"DEAD"}
+ </div>`).join("");
+
+ const pos={}; agents.forEach(a=>{if(a.alive)pos[a.x+","+a.y]=a;});
+ let out="";
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+   const c=world[y][x];
+   let col=c.ocean?"#2f6db5":c.river?"#4a90e2":(c.res>20?"#5b3a1a":"#a78b68");
+   out+=`<div class="tile" style="background:${col}">`;
+   const a=pos[x+","+y];
+   if(a) out+=`<div class="token" style="background:${a.c}">${a.i}</div>`;
+   out+="</div>";
+ }
+ mapEl.innerHTML=out;
+}
+
+function loop(){
+ if(running){
+   tick++;
+   agents.forEach(stepAgent);
+   if(tick%DAYCLICKS===0){day++;regen();}
+   if(tick%REFRESH===0) render();
+ }
+ setTimeout(loop,delay);
+}
+render(); loop();
+</script>
+</body>
+</html>
