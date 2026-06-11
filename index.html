@@ -178,3 +178,223 @@ function loop(){
 render(); loop();
 </script>
 </body>
+ // ======================
+// WORLD SETTINGS
+// ======================
+
+const MAP_SIZE = 25;
+
+const DAY_CLICKS = 25;
+
+const RESPAWN_DAYS = 20;
+
+let clicks = 0;
+let day = 1;
+
+// ======================
+// AGENTS
+// ======================
+
+const agents = [
+
+{
+    name:"Pollock",
+    symbol:"P",
+
+    x:12,
+    y:12,
+
+    health:100,
+
+    hunger:20,
+    thirst:20,
+    sleep:20,
+    social:50,
+
+    harvestEfficiency:1.0,
+
+    alive:true,
+
+    deaths:0,
+
+    age:0,
+
+    respawnDay:0,
+
+    lastActions:["Spawned"],
+
+    personality:"balanced"
+},
+
+{
+    name:"Rembrandt",
+    symbol:"R",
+
+    x:10,
+    y:10,
+
+    health:100,
+
+    hunger:20,
+    thirst:20,
+    sleep:20,
+    social:50,
+
+    harvestEfficiency:1.0,
+
+    alive:true,
+
+    deaths:0,
+
+    age:0,
+
+    respawnDay:0,
+
+    lastActions:["Spawned"],
+
+    personality:"safe"
+},
+
+{
+    name:"Maya",
+    symbol:"M",
+
+    x:14,
+    y:14,
+
+    health:100,
+
+    hunger:20,
+    thirst:20,
+    sleep:20,
+    social:50,
+
+    harvestEfficiency:1.0,
+
+    alive:true,
+
+    deaths:0,
+
+    age:0,
+
+    respawnDay:0,
+
+    lastActions:["Spawned"],
+
+    personality:"risk"
+}
+
+];
+
+// ======================
+// ACTION HISTORY
+// ======================
+
+function addAction(agent, action){
+
+    agent.lastActions.unshift(action);
+
+    if(agent.lastActions.length > 3){
+        agent.lastActions.pop();
+    }
+
+}
+
+// ======================
+// MAP DATA
+// ======================
+
+const mapData = [];
+
+for(let y=0; y<MAP_SIZE; y++){
+
+    let row = [];
+
+    for(let x=0; x<MAP_SIZE; x++){
+
+        let tile = {
+            type:"land",
+            resources:100
+        };
+
+        if(
+            x===0 ||
+            y===0 ||
+            x===MAP_SIZE-1 ||
+            y===MAP_SIZE-1
+        ){
+            tile.type="ocean";
+        }
+
+        row.push(tile);
+    }
+
+    mapData.push(row);
+}
+
+// ======================
+// PARTIAL RIVER
+// ======================
+
+for(let y=2; y<12; y++){
+
+    mapData[y][8].type="river";
+
+}
+
+mapData[11][9].type="river";
+mapData[11][10].type="river";
+
+// ======================
+// RANDOM RESOURCE PATCHES
+// ======================
+
+for(let i=0;i<100;i++){
+
+    let x=Math.floor(Math.random()*MAP_SIZE);
+    let y=Math.floor(Math.random()*MAP_SIZE);
+
+    if(mapData[y][x].type==="land"){
+
+        mapData[y][x].resources =
+            50 + Math.random()*50;
+
+    }
+}
+
+// ======================
+// HELPER FUNCTIONS
+// ======================
+
+function clamp(value,min,max){
+
+    return Math.max(
+        min,
+        Math.min(max,value)
+    );
+
+}
+
+function randomLandTile(){
+
+    while(true){
+
+        let x =
+            Math.floor(
+                Math.random()*MAP_SIZE
+            );
+
+        let y =
+            Math.floor(
+                Math.random()*MAP_SIZE
+            );
+
+        if(
+            mapData[y][x].type === "land"
+        ){
+            return {x,y};
+        }
+
+    }
+
+}
