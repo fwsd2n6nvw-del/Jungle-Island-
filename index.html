@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Island World V5.5</title>
+<style>
+:root{
+  --bg:#111;--panel:#1b1b1b;--line:#333;--text:#eee;
+  --ocean:#3b82f6;--river:#7dd3fc;--shore:#cdbb7c;--rich:#5c3b1e;--poor:#b6814f;--rivercorridor:#806f56;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;padding:10px}
+h1{text-align:center;font-size:22px;margin:6px 0 10px}
+#top,#history,#events,#diaries{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+#top{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-weight:bold}
+#controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+button{padding:8px 12px;border:1px solid #555;border-radius:8px;background:#222;color:#eee;font-weight:bold}
+#cards{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;justify-content:center}
+.card{min-width:300px;max-width:340px;flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.namebox{display:flex;align-items:center;gap:8px;font-weight:bold}
+.icon,.token{border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.icon{width:30px;height:30px}.token{width:18px;height:18px;font-size:11px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.stat{display:flex;justify-content:space-between;align-items:center;border:1px solid #2b2b2b;background:#181818;border-radius:7px;padding:5px 7px;font-size:13px;min-height:28px}
+.stat.wide{grid-column:1/-1}
+.qrow{grid-column:1/-1;border:1px solid #2b2b2b;background:#151515;border-radius:7px;padding:5px 7px;font-size:12px;color:#ddd}
+.qmini{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}.qmini span{background:#202020;border:1px solid #333;border-radius:5px;padding:2px 5px}.qmini .best{border-color:#777;color:#fff;font-weight:bold}
+.alive{color:#22c55e;font-weight:bold}.dead{color:#ef4444;font-weight:bold}
+#legend{text-align:center;font-size:13px;color:#ddd;margin-bottom:6px}
+.wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:6px;margin-bottom:10px}
+#map{display:grid;grid-template-columns:repeat(20,18px);gap:1px;width:max-content;margin:0 auto}
+.tile{width:18px;height:18px;display:flex;align-items:center;justify-content:center}
+.ocean{background:var(--ocean)}.river{background:var(--river)}.shore{background:var(--shore)}.rich{background:var(--rich)}.poor{background:var(--poor)}.rivercorridor{background:var(--rivercorridor)}
+body.night .tile{filter:brightness(.55)}
+body.night .token{filter:brightness(1.45)}
+.hut,.beachhut{background:#6b4a2f;color:#fff;font-size:13px}
+.fire{background:#3b2412;color:#ffb020;font-size:13px;animation:flicker .75s infinite alternate}
+.garden{background:#2f6b35;color:#b7f7a0;font-size:13px}
+.fence{position:relative}
+.fence::before,.fence::after{content:"";position:absolute;background:#2b1608;border-radius:2px;pointer-events:none}
+.fenceH::before{left:2px;right:2px;top:50%;height:3px;transform:translateY(-50%)}
+.fenceV::after{top:2px;bottom:2px;left:50%;width:3px;transform:translateX(-50%)}
+.gate{background:#8b5a2b}
+@keyframes flicker{0%{opacity:.75;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}100%{opacity:.85;transform:scale(.96)}}
+
+h2{font-size:16px;margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #444;padding:6px;text-align:center}
+th{background:#222}
+#log{font-size:13px;color:#ddd;line-height:1.4}
+.diaryGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.diary{border:1px solid #333;background:#181818;border-radius:8px;padding:8px;font-size:13px;line-height:1.4;min-height:92px}
+.diaryHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.diaryTitle{font-weight:bold}
+.diaryClear{font-size:11px;padding:3px 6px;border-color:#444;background:#202020;color:#aaa;border-radius:6px}
+.diaryClear:hover{color:#eee;border-color:#666}
+.diaryScroll{max-height:150px;overflow-y:auto;padding-right:4px}
+.diaryEntry{color:#ddd;margin:3px 0}
+.diaryEmpty{color:#888}
+.diaryTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.diaryTop h2{margin:0}
+@media(max-width:800px){.diaryGrid{grid-template-columns:1fr}}
+@media(max-width:600px){
+  #map{grid-template-columns:repeat(20,16px)}
+  .tile{width:16px;height:16px}.token{width:14px;height:14px;font-size:9px}
+}
+</style>
+</head>
+<body>
+<h1>Island World V5.5</h1>
+
+<div id="top"></div>
+
+<div id="controls">
+  <button id="pauseBtn">Pause</button>
+  <button id="slowBtn">Slow</button>
+  <button id="normalBtn">Normal</button>
+  <button id="fastBtn">Fast</button>
+  <button id="locustBtn">🦗 Locust Invasion</button>
+</div>
+
+<div id="cards"></div>
+
+
+<div class="wrap"><div id="map"></div></div>
+
+<div id="history">
+  <h2>Last Three Actions</h2>
+  <table>
+    <thead><tr><th>Pollock</th><th>Rembrandt</th><th>Maya</th></tr></thead>
+    <tbody>
+      <tr><td id="p0"></td><td id="r0"></td><td id="m0"></td></tr>
+      <tr><td id="p1"></td><td id="r1"></td><td id="m1"></td></tr>
+      <tr><td id="p2"></td><td id="r2"></td><td id="m2"></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="diaries">
+  <div class="diaryTop"><h2>Agent Diaries</h2><span style="color:#aaa;font-size:12px">UI record only — does not affect learning</span></div>
+  <div id="diaryGrid" class="diaryGrid"></div>
+</div>
+
+<div id="events"><h2>Event Log</h2><div id="log"></div></div>
+
+<script>
+const GRID=20, BORDER=2, CLICKS_PER_DAY=25, RESPAWN_DAYS=20, REFRESH_EVERY=4;
+let click=0, day=1, running=true, delay=140;
+let bounty={x:10,y:10,radius:3};
+let locustActive=false, locustDays=0;
+let droughtActive=false, droughtDays=0, droughtZone=null;
+
+const actions=["gather","move","sleep","socialize"];
+const BEACH_HUBS=[
+  // Huts sit one tile in from the coast, with a full walkable ring around them.
+  // Fires sit two tiles away so they do not block the hut gathering ring.
+  {name:"West",hut:{x:3,y:11},fire:{x:5,y:11}},
+  {name:"Southeast",hut:{x:16,y:16},fire:{x:14,y:16}}
+];
+const INFO_TRUST_DAYS=20, INFO_QUESTIONABLE_DAYS=40, INFO_STALE_DAYS=60;
+const eventLog=[];
+const topEl=document.getElementById("top");
+const cardsEl=document.getElementById("cards");
+const mapEl=document.getElementById("map");
+const logEl=document.getElementById("log");
+const diaryGridEl=document.getElementById("diaryGrid");
+
+pauseBtn.onclick=()=>{running=!running;pauseBtn.textContent=running?"Pause":"Play"};
+slowBtn.onclick=()=>delay=260;
+normalBtn.onclick=()=>delay=140;
+fastBtn.onclick=()=>delay=55;
+locustBtn.onclick=()=>locustInvasion();
+diaryGridEl.addEventListener("click",e=>{
+  const btn=e.target.closest(".diaryClear");
+  if(!btn)return;
+  const idx=Number(btn.dataset.agent);
+  if(Number.isInteger(idx)&&agents[idx]){
+    agents[idx].diary=[];
+    render();
+  }
+});
+
+function isNight(){return day%2===0}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+function round(v){return Math.round(v)}
+function logEvent(t){eventLog.unshift(t);if(eventLog.length>9)eventLog.pop()}
+
+function makeAgent(name,initial,color,personality,x,y){
+  return {
+    name,initial,color,personality,x,y,
+    health:100,hunger:80,thirst:80,sleep:80,social:80,harvest:1,
+    deaths:0,age:0,alive:true,deadDays:0,deathCause:"",
+    q:{},qView:{},last:["Spawned"],lastQ:"🍖",currentAction:"Idle",diary:["Day 1: I woke up on the island."],
+    visited:new Set([x+","+y]),
+    resourceMemory:{},
+    knownMap:{},
+    avoidMemory:{}
+  };
+}
+
+const agents=[
+  makeAgent("Pollock","P","#f59e0b","balanced",5,14),
+  makeAgent("Rembrandt","R","#3b82f6","safe",9,14),
+  makeAgent("Maya","M","#a855f7","risk",14,14)
+];
+
+const world=[];
+
+function roughenShoreline(){
+  const shoreTiles=[[3,2],[4,2],[8,2],[14,2],[15,2],[5,17],[6,17],[11,17],[16,17],[2,5],[2,9],[2,10],[2,15],[17,4],[17,8],[17,9],[17,14],[17,15]];
+  shoreTiles.forEach(([x,y])=>{
+    if(!world[y]||!world[y][x])return;
+    world[y][x].water=true;
+    world[y][x].river=false;
+    world[y][x].res=0;
+    world[y][x].fertility=0;
+    world[y][x].trample=0;
+    world[y][x].shore=false;
+  });
+}
+
+
+
+function makeNormalLand(x,y){
+  if(!world[y]||!world[y][x])return;
+  const c=world[y][x];
+  c.water=false;
+  c.river=false;
+  c.structure=null;
+  c.gate=false;
+  c.garden=false;
+  c.shore=false;
+  c.res=20+Math.random()*25;
+  c.fertility=.55+Math.random()*.20;
+  c.trample=0;
+  c.lastVisitedDay=-999;
+}
+
+function clearBeachHubWalkingRings(){
+  BEACH_HUBS.forEach(h=>{
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        if(dx===0&&dy===0)continue;
+        makeNormalLand(h.hut.x+dx,h.hut.y+dy);
+      }
+    }
+  });
+}
+
+function markBlockedStructure(x,y,type){
+  const c=world[y][x];
+  c.structure=type;
+  c.water=false;
+  c.river=false;
+  c.res=0;
+  c.fertility=0;
+  c.trample=0;
+  c.gate=false;
+  c.garden=false;
+}
+
+function buildOldCamp(){
+  const fenceTiles=[
+    [6,8],[7,8],[8,8],[9,8],[10,8],[11,8],[12,8],[13,8],
+    [6,9],[13,9],
+    [6,10],[13,10],
+    [6,11],[13,11],
+    [6,12],
+    [6,13],[13,13],
+    [6,14],[9,14],[10,14],[11,14],[12,14],[13,14]
+  ];
+  fenceTiles.forEach(([x,y])=>{if(world[y]&&world[y][x])markBlockedStructure(x,y,"fence")});
+
+  [[7,14],[8,14],[13,12]].forEach(([x,y])=>{
+    const c=world[y][x];
+    c.structure="gate";c.gate=true;c.water=false;c.river=false;c.res=0;c.fertility=0;c.trample=0;c.garden=false;
+  });
+
+  markBlockedStructure(8,12,"hut");
+  markBlockedStructure(9,12,"fire");
+
+  [[8,10],[9,10],[10,10],[11,10],[8,11],[9,11],[10,11],[11,11]].forEach(([x,y])=>{
+    const c=world[y][x];
+    c.structure="garden";c.garden=true;c.water=false;c.river=false;c.res=35+Math.random()*25;c.fertility=1.05;c.trample=0;c.gate=false;
+  });
+
+  buildBeachHubs();
+}
+
+function buildBeachHubs(){
+  BEACH_HUBS.forEach(h=>{
+    markBlockedStructure(h.hut.x,h.hut.y,"beach_hut");
+    markBlockedStructure(h.fire.x,h.fire.y,"fire");
+  });
+}
+
+
+function inFencedArea(x,y){
+  return x>=6 && x<=13 && y>=8 && y<=14;
+}
+
+function riverDistance(x,y){
+  let best=Infinity;
+  for(let yy=0;yy<GRID;yy++){
+    for(let xx=0;xx<GRID;xx++){
+      if(world[yy][xx].river){
+        best=Math.min(best,Math.abs(x-xx)+Math.abs(y-yy));
+      }
+    }
+  }
+  return best;
+}
+
+function nearRiver(x,y){
+  return riverDistance(x,y)<=5;
+}
+
+function nearBeachHub(a,range=6){
+  return BEACH_HUBS.some(h=>Math.abs(a.x-h.hut.x)+Math.abs(a.y-h.hut.y)<=range);
+}
+
+function beachFireForAgent(a,range=3){
+  return BEACH_HUBS.find(h=>Math.abs(a.x-h.fire.x)+Math.abs(a.y-h.fire.y)<=range)||null;
+}
+
+function agentsAtSameBeachFire(a,range=3){
+  const hub=beachFireForAgent(a,range);
+  if(!hub)return [];
+  return agents.filter(o=>o.alive&&Math.abs(o.x-hub.fire.x)+Math.abs(o.y-hub.fire.y)<=range);
+}
+
+function startDrought(){
+  droughtActive=true;
+  droughtDays=20;
+
+  const vertical=Math.random()<0.5;
+  const size=4; // softened: 4 of 6 bands, not 5 of 6
+  const start=Math.floor(Math.random()*(6-size+1));
+  droughtZone={vertical,start,size};
+
+  logEvent("🌵 Regional drought began for 20 days.");
+}
+
+function inDroughtZone(x,y){
+  if(!droughtActive || !droughtZone)return false;
+  if(inFencedArea(x,y))return false;
+
+  const band=droughtZone.vertical
+    ? Math.floor(x/(GRID/6))
+    : Math.floor(y/(GRID/6));
+
+  return band>=droughtZone.start && band<droughtZone.start+droughtZone.size;
+}
+
+function droughtMultiplier(x,y){
+  if(!inDroughtZone(x,y))return 1;
+  if(world[y][x].garden)return 1;
+  if(nearRiver(x,y))return .80;
+  return .55;
+}
+
+function worldStatus(){
+  if(locustActive)return `🦗 Locust ${locustDays}d`;
+  if(droughtActive)return `🌵 Drought ${droughtDays}d`;
+  return "🌎 Normal";
+}
+
+function nearCamp(a){
+  return Math.abs(a.x-9)<=4&&Math.abs(a.y-12)<=4;
+}
+
+function waterQuality(x,y){
+  const c=world[y][x];
+  if(c.garden)return 3;
+  const d=riverDistance(x,y);
+  if(d<=1)return 3;
+  if(d<=3)return 2;
+  if(d<=5)return 1;
+  return 0;
+}
+
+function hasWaterAccess(x,y){
+  return waterQuality(x,y)>0;
+}
+
+function nearestWaterTarget(a){
+  let best=null,bestScore=-Infinity;
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      if(!isLand(x,y)||occupied(x,y))continue;
+      const q=waterQuality(x,y);
+      if(q<=0)continue;
+      const dist=Math.abs(a.x-x)+Math.abs(a.y-y);
+      const score=q*12-dist;
+      if(score>bestScore){bestScore=score;best={x,y,q,dist}}
+    }
+  }
+  return best;
+}
+
+function initWorld(){
+  for(let y=0;y<GRID;y++){
+    world[y]=[];
+    for(let x=0;x<GRID;x++){
+      const water=x<BORDER||y<BORDER||x>=GRID-BORDER||y>=GRID-BORDER;
+      world[y][x]={
+        water,
+        river:false,
+        res:water?0:10+Math.random()*28,
+        fertility:1,
+        trample:0,
+        lastVisitedDay:-999,
+        structure:null,
+        gate:false,
+        garden:false,
+        shore:false
+      };
+    }
+  }
+
+  roughenShoreline();
+
+  // River removed: all former river area remains normal resource land.
+
+  clearBeachHubWalkingRings();
+  buildOldCamp();
+  updateShoreTiles();
+  shiftBounty();
+}
+
+function updateShoreTiles(){
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c=world[y][x];
+      c.shore=false;
+      if(c.water||c.structure)continue;
+      const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+      for(const [dx,dy] of dirs){
+        const nx=x+dx,ny=y+dy;
+        if(nx>=0&&ny>=0&&nx<GRID&&ny<GRID&&world[ny][nx].water){
+          c.shore=true;
+          break;
+        }
+      }
+    }
+  }
+}
+
+function isLand(x,y){return x>=0&&y>=0&&x<GRID&&y<GRID&&!world[y][x].water&&!["fence","hut","fire","beach_hut"].includes(world[y][x].structure)}
+function occupied(x,y){return agents.some(a=>a.alive&&a.x===x&&a.y===y)}
+
+function randomLand(){
+  for(let i=0;i<1000;i++){
+    const x=BORDER+Math.floor(Math.random()*(GRID-BORDER*2));
+    const y=BORDER+Math.floor(Math.random()*(GRID-BORDER*2));
+    if(isLand(x,y)&&!occupied(x,y)&&!world[y][x].structure)return{x,y};
+  }
+  return{x:BORDER,y:BORDER};
+}
+
+function diaryThought(a,t){
+  const c=world[a.y]?.[a.x];
+  if(!c)return `Day ${day}: ${t}.`;
+  if(!a.alive)return `Day ${day}: Everything went dark.`;
+  if(t.includes("Map Talk"))return `Day ${day}: I traded map clues at the beach fire.`;
+  if(t.includes("Map Chat"))return `Day ${day}: I picked up useful map information from another agent.`;
+  if(t.includes("No One Nearby"))return `Day ${day}: I had no one nearby to talk with.`;
+  if(t.includes("Failed Social"))return `Day ${day}: I looked for company but found no one nearby.`;
+  if(t.includes("Socialize"))return `Day ${day}: I talked because another agent was nearby.`;
+  if(t.includes("Gather") && c.garden)return `Day ${day}: The garden gave me a safer place to gather.`;
+  if(t.includes("Gather") && waterQuality(a.x,a.y)>0)return `Day ${day}: I gathered where water was still within reach.`;
+  if(t.includes("Gather"))return `Day ${day}: I gathered what food I could from this tile.`;
+  if(t.includes("Move") && a.personality==="risk")return `Day ${day}: I moved on to test new ground.`;
+  if(t.includes("Move") && a.thirst<45)return `Day ${day}: I moved because water was becoming important.`;
+  if(t.includes("Move"))return `Day ${day}: I changed position to improve my chances.`;
+  if(t.includes("Sleep"))return `Day ${day}: I rested to recover strength.`;
+  if(t.includes("Died"))return `Day ${day}: I died from ${a.deathCause||"unknown causes"}.`;
+  if(t.includes("Respawned"))return `Day ${day}: I returned to the island with a fresh start.`;
+  return `Day ${day}: ${t}.`;
+}
+
+function addDiary(a,t){
+  a.diary.unshift(t);
+  if(a.diary.length>50)a.diary.pop();
+}
+
+function addAction(a,t){
+  a.last.unshift(t);
+  if(a.last.length>3)a.last.pop();
+  a.currentAction=t;
+  addDiary(a,diaryThought(a,t));
+}
+
+function dominantNeed(a){
+  const needs=[
+    {icon:"🍖",value:100-a.hunger},
+    {icon:"💧",value:100-a.thirst},
+    {icon:"😴",value:100-a.sleep}
+  ];
+  needs.sort((a,b)=>b.value-a.value);
+  a.lastQ=needs[0].icon;
+  return needs[0].icon;
+}
+
+function memoryFreshness(entry){
+  const age=day-entry.seenDay;
+  if(age<=INFO_TRUST_DAYS)return 1.0;
+  if(age<=INFO_QUESTIONABLE_DAYS)return 0.7;
+  if(age<=INFO_STALE_DAYS)return 0.3;
+  return 0;
+}
+
+function mapTile(a,x,y,source="seen"){
+  if(x<0||y<0||x>=GRID||y>=GRID)return 0;
+  const c=world[y][x];
+  const key=x+","+y;
+  const old=a.knownMap[key];
+  const wasUnknown=!old || memoryFreshness(old)===0;
+  const entry={
+    x,y,seenDay:day,source,
+    water:c.water,river:c.river,shore:c.shore,structure:c.structure,
+    garden:c.garden,gate:c.gate,passable:isLand(x,y),
+    res:c.res,fertility:c.fertility,trample:c.trample,
+    drought:inDroughtZone(x,y),waterScore:waterQuality(x,y)
+  };
+  a.knownMap[key]=entry;
+  if(entry.passable){
+    a.resourceMemory[key]={x,y,res:c.res,fertility:c.fertility,trample:c.trample,garden:c.garden,seenDay:day,waterScore:entry.waterScore};
+  }
+  return wasUnknown ? (entry.river||entry.garden||entry.structure ? 1.0 : 0.15) : 0;
+}
+
+function scanNearby(a){
+  let reward=0;
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      reward+=mapTile(a,a.x+dx,a.y+dy);
+    }
+  }
+  return reward;
+}
+
+function bestRememberedResource(a){
+  let best=null,bestScore=-Infinity;
+  for(const key in a.knownMap){
+    const m=a.knownMap[key];
+    if(!m.passable)continue;
+    const freshness=memoryFreshness(m);
+    if(freshness<=0)continue;
+    const dist=Math.abs(a.x-m.x)+Math.abs(a.y-m.y);
+    const score=(m.res*freshness)+(m.waterScore*8*freshness)+(m.fertility*10)+(m.garden?8:0)+(m.structure==="beach_hut"?5:0)-(dist*2)-((m.trample||0)*3);
+    if(score>bestScore){bestScore=score;best=m;}
+  }
+  return best;
+}
+
+function qState(a){
+  const c=world[a.y][a.x];
+  return [
+    Math.floor(a.health/20),
+    Math.floor(a.hunger/20),
+    Math.floor(a.thirst/20),
+    Math.floor(a.sleep/20),
+    Math.floor(c.res/20),
+    waterQuality(a.x,a.y),
+    nearBeachHub(a)?1:0,
+    Math.floor(a.x/4),
+    Math.floor(c.trample/2)
+  ].join("|");
+}
+
+function ensureQ(a,s){if(!a.q[s])a.q[s]={gather:0,move:0,sleep:0,socialize:0}}
+
+function chooseAction(a){
+  dominantNeed(a);
+  const scores=actionScores(a);
+  const possible=validActions(a);
+
+  let epsilon=a.personality==="risk"?.42:a.personality==="safe"?.12:.20;
+  if(Math.random()<epsilon){
+    if(a.personality==="risk"&&possible.includes("move")&&Math.random()<.60)return"move";
+    return possible[Math.floor(Math.random()*possible.length)];
+  }
+
+  let best=possible[0],bestVal=-Infinity;
+  for(const act of possible){
+    const v=scores[act];
+    if(v>bestVal){bestVal=v;best=act}
+  }
+  return best;
+}
+
+function learn(a,s,act,r,ns){
+  ensureQ(a,s);ensureQ(a,ns);
+  const alpha=.1,gamma=.9;
+  const old=a.q[s][act];
+  const future=Math.max(...Object.values(a.q[ns]));
+  a.q[s][act]=old+alpha*(r+gamma*future-old);
+}
+
+function nearbyAgent(a){
+  return agents.some(o=>o!==a&&o.alive&&Math.abs(o.x-a.x)<=6&&Math.abs(o.y-a.y)<=6);
+}
+
+function socialAvailable(a){
+  return agentsAtSameBeachFire(a,3).length>=2 || nearbyAgent(a);
+}
+
+function validActions(a){
+  return socialAvailable(a) ? actions : actions.filter(act=>act!=="socialize");
+}
+
+function usefulCluePotential(a){
+  const fireGroup=agentsAtSameBeachFire(a,3).filter(o=>o!==a);
+  const nearby=agents.filter(o=>o!==a&&o.alive&&Math.abs(o.x-a.x)<=6&&Math.abs(o.y-a.y)<=6);
+  const others=fireGroup.length?fireGroup:nearby;
+  let count=0;
+  others.forEach(o=>{
+    for(const m of Object.values(o.knownMap)){
+      if(usefulMemoryScore(m,a)>-Infinity)count++;
+      if(count>=5)return;
+    }
+  });
+  return count;
+}
+
+function actionScores(a){
+  const s=qState(a);
+  ensureQ(a,s);
+  const remembered=bestRememberedResource(a);
+  const possible=validActions(a);
+  const scores={};
+  for(const act of actions){
+    if(!possible.includes(act)){scores[act]=null;continue;}
+    let v=a.q[s][act];
+    if(a.thirst<45&&act==="gather")v+=waterQuality(a.x,a.y)>0?9:3;
+    if(a.thirst<45&&act==="move"&&waterQuality(a.x,a.y)<2)v+=10;
+    if(a.thirst<25&&act==="move"&&waterQuality(a.x,a.y)<3)v+=8;
+    if(a.hunger<35&&act==="gather")v+=5;
+    if(a.sleep<45&&act==="sleep")v+=7;
+    if(act==="socialize"){
+      const clues=usefulCluePotential(a);
+      if(nearBeachHub(a)&&agentsAtSameBeachFire(a,3).length>=2)v+=8;
+      v+=clues*2.5;
+      if(clues===0)v-=2;
+    }
+    if(a.personality==="safe"&&a.health<60&&act==="sleep")v+=3;
+    if(a.personality==="risk"&&act==="move")v+=2.5;
+    if(remembered&&act==="move"&&(a.hunger<60||a.thirst<60||a.personality==="risk"))v+=2;
+    scores[act]=v;
+  }
+  a.qView=scores;
+  return scores;
+}
+
+function shiftBounty(){
+  const p=randomLand();
+  bounty={x:p.x,y:p.y,radius:1+Math.floor(Math.random()*2)};
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c=world[y][x];
+      if(c.water){c.fertility=0;continue}
+      const dist=Math.hypot(x-bounty.x,y-bounty.y);
+      c.fertility=dist<=bounty.radius?0.95:0.30+Math.random()*0.20;
+    }
+  }
+  logEvent("🌾 Resource bounty shifted on Day "+day);
+}
+
+function visitTile(a){
+  const c=world[a.y][a.x];
+  if(c.water)return;
+
+  const daysAway=day-c.lastVisitedDay;
+  if(daysAway>0)c.trample=Math.max(0,c.trample-daysAway*.35);
+
+  c.trample=clamp(c.trample+1,0,6);
+  c.lastVisitedDay=day;
+}
+
+function regenResources(){
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c=world[y][x];
+      if(c.water)continue;
+
+      if(click%CLICKS_PER_DAY===0){
+        const daysAway=day-c.lastVisitedDay;
+        if(daysAway>0)c.trample=Math.max(0,c.trample-.40);
+      }
+
+      const shock=(locustActive?.5:1)*droughtMultiplier(x,y);
+      const base=Math.random()<0.022*shock?1:0;
+      const bonus=Math.random()<0.006*c.fertility*shock?1:0;
+      const trampleSlow=clamp(1-c.trample*.06,.45,1);
+
+      c.res=clamp(c.res+(base+bonus)*c.fertility*trampleSlow,0,100);
+    }
+  }
+
+  if(day%50===0&&click%CLICKS_PER_DAY===0)shiftBounty();
+}
+
+function locustInvasion(){
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c=world[y][x];
+      if(c.water)continue;
+      c.res*=.15;
+    }
+  }
+  locustActive=true;
+  locustDays=30;
+  logEvent("🦗 Locust invasion! 85% of island resources consumed.");
+  render();
+}
+
+function moveAgent(a){
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]];
+  let opts=dirs.map(d=>({x:a.x+d[0],y:a.y+d[1]})).filter(p=>isLand(p.x,p.y)&&!occupied(p.x,p.y));
+  if(!opts.length)return-2;
+
+  let target;
+  const remembered=bestRememberedResource(a);
+  const waterTarget=a.thirst<55?nearestWaterTarget(a):null;
+  if(waterTarget&&waterQuality(a.x,a.y)<2){
+    opts.sort((p1,p2)=>{
+      const d1=Math.abs(p1.x-waterTarget.x)+Math.abs(p1.y-waterTarget.y)-(waterQuality(p1.x,p1.y)*2);
+      const d2=Math.abs(p2.x-waterTarget.x)+Math.abs(p2.y-waterTarget.y)-(waterQuality(p2.x,p2.y)*2);
+      return d1-d2;
+    });
+    target=opts[0];
+  }else if(remembered&&remembered.res>25&&(a.hunger<60||a.thirst<60||a.personality==="risk")){
+    opts.sort((p1,p2)=>{
+      const d1=Math.abs(p1.x-remembered.x)+Math.abs(p1.y-remembered.y);
+      const d2=Math.abs(p2.x-remembered.x)+Math.abs(p2.y-remembered.y);
+      return d1-d2;
+    });
+    target=opts[0];
+  }else if(a.personality==="safe"){
+    opts.sort((a,b)=>world[b.y][b.x].res-world[a.y][a.x].res);
+    target=opts[0];
+  }else{
+    target=opts[Math.floor(Math.random()*opts.length)];
+  }
+
+  a.x=target.x;
+  a.y=target.y;
+  visitTile(a);
+  scanNearby(a);
+
+  const key=a.x+","+a.y;
+  let reward=1;
+  if(!a.visited.has(key)){
+    a.visited.add(key);
+    reward+=1;
+    if(world[a.y][a.x].fertility>0.85)reward+=a.personality==="risk"?12:8;
+  }
+
+  addAction(a,"🚶 Move");
+  return reward;
+}
+
+function gather(a){
+  const c=world[a.y][a.x];
+  if(c.water)return-5;
+
+  visitTile(a);
+  scanNearby(a);
+
+  const amount=clamp(1.2+Math.random()*2.8,1,4)*a.harvest;
+  const foodGained=Math.min(c.res,amount);
+  c.res=clamp(c.res-foodGained,0,100);
+
+  let gardenBonus=0;
+  if(c.garden&&Math.random()<0.15){
+    gardenBonus=8+Math.random()*12;
+    logEvent("🌱 Garden bounty found by "+a.name+"!");
+  }
+
+  // Food can be gathered from land resources. Water is best near rivers,
+  // mostly reliable in gardens, and weak/unreliable everywhere else.
+  const gardenWaterSuccess=c.garden && Math.random()<0.85;
+  const d=riverDistance(a.x,a.y);
+  let waterGained=0;
+
+  if(c.garden && gardenWaterSuccess){
+    waterGained=5.5+foodGained*.35+gardenBonus*.25;
+  }else if(d<=1){
+    waterGained=7+foodGained*.25;
+  }else if(d<=3){
+    waterGained=5+foodGained*.18;
+  }else if(d<=5){
+    waterGained=3.4+foodGained*.12;
+  }else if(Math.random()<0.75){
+    waterGained=1.2+Math.random()*1.8;
+  }
+
+  a.hunger=clamp(a.hunger+foodGained*1.1+gardenBonus,0,100);
+  a.thirst=clamp(a.thirst+waterGained,0,100);
+  a.harvest=clamp(a.harvest+.02,.5,1);
+
+  if(c.garden&&!gardenWaterSuccess&&d>5)addAction(a,"🍖🌱 Gather");
+  else addAction(a,waterGained>0?"🍖💧 Gather":"🍖 Gather");
+
+  return foodGained+waterGained*.7+(a.hunger<35?4:0)+(a.thirst<35&&waterGained>0?5:0)+(a.thirst<25&&waterGained===0?-3:0);
+}
+
+function sleepAgent(a){
+  a.sleep=clamp(a.sleep+5,0,100);
+  a.health=clamp(a.health+1.0,0,100);
+  a.harvest=clamp(a.harvest+.01,.5,1);
+  a.hunger=clamp(a.hunger-.10,0,100);
+
+  addAction(a,"😴 Sleep");
+  return a.sleep<45?5:1;
+}
+
+function usefulMemoryScore(m,receiver){
+  const fresh=memoryFreshness(m);
+  if(fresh<=0)return -Infinity;
+  const current=receiver.knownMap[m.x+","+m.y];
+  if(current && current.seenDay>=m.seenDay)return -Infinity;
+  let score=0;
+  score+=m.res*.5;
+  score+=m.waterScore*12;
+  if(m.river)score+=18;
+  if(m.garden)score+=16;
+  if(m.structure==="beach_hut"||m.structure==="hut")score+=12;
+  if(m.structure==="gate")score+=10;
+  if(m.drought)score+=8;
+  score*=fresh;
+  return score;
+}
+
+function shareOneUsefulMemory(from,to){
+  const candidates=Object.values(from.knownMap)
+    .map(m=>({m,score:usefulMemoryScore(m,to)}))
+    .filter(x=>x.score>-Infinity)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,6);
+  if(!candidates.length)return false;
+  const pick=candidates[Math.floor(Math.random()*candidates.length)].m;
+  to.knownMap[pick.x+","+pick.y]={...pick,source:"shared"};
+  return true;
+}
+
+function exchangeKnowledge(a,others,guaranteed){
+  let shared=0;
+  others.forEach(o=>{
+    if(o===a||!o.alive)return;
+    if(guaranteed || Math.random()<0.35){
+      if(shareOneUsefulMemory(o,a))shared++;
+    }
+    if(guaranteed || Math.random()<0.35){
+      if(shareOneUsefulMemory(a,o))shared++;
+    }
+  });
+  return shared;
+}
+
+function socialize(a){
+  const fireGroup=agentsAtSameBeachFire(a,3);
+  if(fireGroup.length>=2){
+    const others=fireGroup.filter(o=>o!==a);
+    const shared=exchangeKnowledge(a,others,true);
+    a.harvest=clamp(a.harvest-.04,.5,1);
+    addAction(a,"👥🛖 Map Talk");
+    if(shared>0)logEvent("🛖 "+a.name+" exchanged "+shared+" map clue"+(shared>1?"s":"")+" at a beach fire.");
+    return 2+shared*5;
+  }
+
+  const others=agents.filter(o=>o!==a&&o.alive&&Math.abs(o.x-a.x)<=6&&Math.abs(o.y-a.y)<=6);
+  if(others.length){
+    const shared=exchangeKnowledge(a,others,false);
+    a.harvest=clamp(a.harvest-.05,.5,1);
+    addAction(a,shared>0?"👥 Map Chat":"👥 Socialize");
+    return shared>0 ? 1+shared*3 : -1;
+  }
+
+  addAction(a,"👥 No One Nearby");
+  return -2;
+}
+
+function applyNeeds(a){
+  a.hunger=clamp(a.hunger-.52,0,100);
+  a.thirst=clamp(a.thirst-.34,0,100);
+  const nightSleepDrain=isNight()?1.35:1;
+  a.sleep=clamp(a.sleep-(.34*nightSleepDrain),0,100);
+  if(a.thirst<20)a.health-=2.0;
+  if(a.hunger<20)a.health-=2.2;
+  if(a.sleep<20)a.health-=1.4;
+
+  if(a.hunger>55&&a.thirst>55&&a.sleep>45)a.health=clamp(a.health+.18,0,100);
+  a.health=clamp(a.health,0,100);
+}
+
+function deathReason(a){
+  const problems=[
+    {name:"dehydration",emoji:"💧",value:a.thirst},
+    {name:"starvation",emoji:"🍖",value:a.hunger},
+    {name:"exhaustion",emoji:"😴",value:a.sleep}
+  ];
+  problems.sort((x,y)=>x.value-y.value);
+  const main=problems[0];
+  let context="";
+  if(droughtActive)context=" during drought";
+  else if(locustActive)context=" after locust pressure";
+  else if(isNight())context=" at night";
+  return `${main.emoji} ${main.name}${context}`;
+}
+
+function killAgent(a){
+  if(!a.alive)return;
+  const reason=deathReason(a);
+  a.alive=false;
+  a.deaths++;
+  a.deadDays=0;
+  a.deathCause=reason;
+  a.health=0;
+  addAction(a,"☠️ Died");
+  logEvent("☠️ "+a.name+" died of "+reason+" on Day "+day);
+}
+
+function respawn(a){
+  const p=randomLand();
+  a.x=p.x;
+  a.y=p.y;
+  a.health=100;
+  a.hunger=80;
+  a.thirst=80;
+  a.sleep=80;
+  a.social=80;
+  a.harvest=1;
+  a.age=0;
+  a.alive=true;
+  a.deadDays=0;
+  a.deathCause="";
+  addAction(a,"🟢 Respawned");
+  logEvent("🟢 "+a.name+" respawned on Day "+day);
+}
+
+function stepAgent(a){
+  if(!a.alive)return;
+
+  let mapReward=scanNearby(a);
+
+  const s=qState(a);
+  const act=chooseAction(a);
+  let reward=0;
+
+  if(act==="gather")reward=gather(a);
+  if(act==="move")reward=moveAgent(a);
+  if(act==="sleep")reward=sleepAgent(a);
+  if(act==="socialize")reward=socialize(a);
+  reward+=mapReward*.3;
+
+  applyNeeds(a);
+
+  if(a.health<=0){
+    reward-=100;
+    killAgent(a);
+  }
+
+  learn(a,s,act,reward,qState(a));
+}
+
+function step(){
+  click++;
+  regenResources();
+  agents.forEach(stepAgent);
+
+  if(click%CLICKS_PER_DAY===0){
+    day++;
+
+    if(droughtActive){
+      droughtDays--;
+      if(droughtDays<=0){
+        droughtActive=false;
+        droughtZone=null;
+        logEvent("🌧️ Regional drought ended on Day "+day);
+      }
+    }else if(!locustActive && day>5 && Math.random()<0.025){
+      startDrought();
+    }
+
+    if(locustActive){
+      locustDays--;
+      if(locustDays<=0){
+        locustActive=false;
+        logEvent("🌱 Island recovering from locust invasion on Day "+day);
+      }
+    }
+
+    agents.forEach(a=>{
+      if(a.alive)a.age++;
+      else{
+        a.deadDays++;
+        if(a.deadDays>=RESPAWN_DAYS)respawn(a);
+      }
+    });
+  }
+
+  if(click%REFRESH_EVERY===0)render();
+}
+
+function qScoreHTML(a){
+  const scores=actionScores(a);
+  const vals=Object.entries(scores).filter(([k,v])=>v!==null);
+  const best=vals.length?vals.reduce((b,x)=>x[1]>b[1]?x:b,vals[0])[0]:"";
+  const label={gather:"🍖",move:"🚶",sleep:"😴",socialize:"💬"};
+  const rows=actions.map(act=>{
+    const v=scores[act];
+    const txt=v===null?"—":v.toFixed(1);
+    const cls=act===best?" class='best'":"";
+    return `<span${cls}>${label[act]} ${txt}</span>`;
+  }).join("");
+  return `<div class="qrow"><b>Q choice</b><div class="qmini">${rows}</div></div>`;
+}
+
+function cardHTML(a){
+  const status=a.alive?"<span class='alive'>🟢 Alive</span>":"<span class='dead'>🔴 Dead</span>";
+  const resp=a.alive?"":`<div class="stat wide"><span>☠️ Cause</span><b>${a.deathCause||"Unknown"}</b></div><div class="stat wide"><span>⏳ Respawn</span><b>${Math.max(0,RESPAWN_DAYS-a.deadDays)}d</b></div>`;
+  const deathLine=a.deaths>0?`<div class="stat"><span>☠️ Deaths</span><b>${a.deaths}</b></div>`:"";
+  return `<div class="card">
+    <div class="head"><div class="namebox"><div class="icon" style="background:${a.color}">${a.initial}</div>${a.name}</div>${status}</div>
+    <div class="stats">
+      <div class="stat"><span>❤️ Health</span><b>${round(a.health)}</b></div>
+      <div class="stat"><span>🍖 Food</span><b>${round(a.hunger)}</b></div>
+      <div class="stat"><span>💧 Water</span><b>${round(a.thirst)}</b></div>
+      <div class="stat"><span>😴 Sleep</span><b>${round(a.sleep)}</b></div>
+      <div class="stat"><span>💬 Talk</span><b>${socialAvailable(a)?"Open":"Alone"}</b></div>
+      <div class="stat"><span>🤔 Focus</span><b>${a.lastQ}</b></div>
+      <div class="stat"><span>🗺️ Map</span><b>${Object.values(a.knownMap).filter(m=>memoryFreshness(m)>0).length}</b></div>
+      ${qScoreHTML(a)}
+      <div class="stat wide"><span>🎯 Action</span><b>${a.currentAction}</b></div>
+      ${deathLine}
+      ${resp}
+    </div>
+  </div>`;
+}
+
+function baseTerrainClass(x,y){
+  const c=world[y][x];
+  if(c.water)return c.river?"river":"ocean";
+  if(c.shore)return "shore";
+  if(nearRiver(x,y))return "rivercorridor";
+  return c.res>=55?"rich":"poor";
+}
+
+function fenceShapeClass(x,y){
+  const left=world[y]?.[x-1]?.structure==="fence" || world[y]?.[x-1]?.structure==="gate";
+  const right=world[y]?.[x+1]?.structure==="fence" || world[y]?.[x+1]?.structure==="gate";
+  const up=world[y-1]?.[x]?.structure==="fence" || world[y-1]?.[x]?.structure==="gate";
+  const down=world[y+1]?.[x]?.structure==="fence" || world[y+1]?.[x]?.structure==="gate";
+  const h=left||right;
+  const v=up||down;
+  return (h?" fenceH":"")+(v?" fenceV":"");
+}
+
+function diaryHTML(a,idx){
+  const rows=(a.diary&&a.diary.length)?a.diary.map(d=>`<div class="diaryEntry">${d}</div>`).join(""):`<div class="diaryEmpty">No diary entries yet.</div>`;
+  return `<div class="diary">
+    <div class="diaryHead">
+      <div class="diaryTitle"><span style="color:${a.color}">${a.initial}</span> ${a.name}'s Diary</div>
+      <button class="diaryClear" data-agent="${idx}" title="Clear only this visible diary">clear</button>
+    </div>
+    <div class="diaryScroll">${rows}</div>
+  </div>`;
+}
+
+function render(){
+  const alive=agents.filter(a=>a.alive).length;
+  const deaths=agents.reduce((s,a)=>s+a.deaths,0);
+  document.body.classList.toggle("night",isNight());
+  topEl.innerHTML=`<span>📅 Day ${day}</span><span>${isNight()?"🌙 Night":"☀️ Day"}</span><span>${worldStatus()}</span><span>🟢 Alive ${alive}/3</span><span>☠️ Deaths ${deaths}</span>`;
+
+  cardsEl.innerHTML=agents.map(cardHTML).join("");
+  diaryGridEl.innerHTML=agents.map((a,idx)=>diaryHTML(a,idx)).join("");
+
+  const pos={};
+  agents.forEach(a=>{if(a.alive)pos[a.x+","+a.y]=a});
+
+  let html="";
+  for(let y=0;y<GRID;y++){
+    for(let x=0;x<GRID;x++){
+      const c=world[y][x];
+      let cls;
+      if(c.water)cls=c.river?"river":"ocean";
+      else if(c.structure==="hut")cls="hut";
+      else if(c.structure==="beach_hut")cls="beachhut";
+      else if(c.structure==="fire")cls="fire";
+      else if(c.structure==="garden")cls="garden";
+      else if(c.structure==="fence")cls=baseTerrainClass(x,y)+" fence"+fenceShapeClass(x,y);
+      else if(c.structure==="gate")cls="gate";
+      else cls=baseTerrainClass(x,y);
+      html+=`<div class="tile ${cls}">`;
+      const a=pos[x+","+y];
+      if(a)html+=`<div class="token" style="background:${a.color}">${a.initial}</div>`;
+      else if(c.structure==="hut")html+="🏚️";
+      else if(c.structure==="beach_hut")html+="🛖";
+      else if(c.structure==="fire")html+="🔥";
+      else if(c.structure==="garden")html+="🌱";
+      html+=`</div>`;
+    }
+  }
+  mapEl.innerHTML=html;
+
+  [["p",0],["r",1],["m",2]].forEach(([pre,idx])=>{
+    for(let i=0;i<3;i++)document.getElementById(pre+i).textContent=agents[idx].last[i]||"";
+  });
+
+  logEl.innerHTML=eventLog.length?eventLog.map(e=>`<div>${e}</div>`).join(""):"<span style='color:#aaa'>No major events yet.</span>";
+}
+
+function loop(){
+  if(running)step();
+  setTimeout(loop,delay);
+}
+
+initWorld();
+logEvent("🌍 Island World V5.5 started");
+render();
+loop();
+</script>
+</body>
+</html>
